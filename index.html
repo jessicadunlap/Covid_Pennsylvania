@@ -1,0 +1,166 @@
+<!DOCTYPE html>
+<html>
+<head>
+	
+	<title>PA Confirmed Covid Cases - Leaflet</title>
+
+	<meta charset="utf-8" />
+	<meta name="viewport" content="width=device-width, initial-scale=1.0">
+	
+	<link rel="shortcut icon" type="image/x-icon" href="docs/images/favicon.ico" />
+
+    <link rel="stylesheet" href="https://unpkg.com/leaflet@1.6.0/dist/leaflet.css" integrity="sha512-xwE/Az9zrjBIphAcBb3F6JVqxf46+CDLwfLMHloNu6KEQCAWi6HcDUbeOfBIptF7tcCzusKFjFw2yuvEpDL9wQ==" crossorigin=""/>
+    <script src="https://unpkg.com/leaflet@1.6.0/dist/leaflet.js" integrity="sha512-gZwIG9x3wUXg2hdXF6+rVkLF/0Vi9U8D2Ntg4Ga5I5BZpVkVxlJWbSQtXPSiUTtC0TjtGOmxa1AJPuV0CPthew==" crossorigin=""></script>
+
+
+	<style>
+		html, body {
+			height: 100%;
+			margin: 0;
+		}
+		#map {
+			width: 600px;
+			height: 400px;
+		}
+	</style>
+
+	<style>#map { width: 800px; height: 500px; }
+.info { padding: 6px 8px; font: 14px/16px Arial, Helvetica, sans-serif; background: white; background: rgba(255,255,255,0.8); box-shadow: 0 0 15px rgba(0,0,0,0.2); border-radius: 5px; } .info h4 { margin: 0 0 5px; color: #777; } 
+.legend { text-align: left; line-height: 18px; color: #555; } .legend i { width: 18px; height: 18px; float: left; margin-right: 8px; opacity: 0.7; }</style>
+</head>
+<body>
+
+<div id='map'></div>
+
+<script type="text/javascript" src="pa_covid_confirm.json"></script>
+
+<script type="text/javascript">
+
+	var map = L.map('map').setView([40.739650, -77.270754], 7);
+    //set center of map and zoom
+
+	L.tileLayer('https://api.mapbox.com/styles/v1/{id}/tiles/{z}/{x}/{y}?access_token=pk.eyJ1IjoibWFwYm94IiwiYSI6ImNpejY4NXVycTA2emYycXBndHRqcmZ3N3gifQ.rJcFIG214AriISLbB6B5aw', {
+		maxZoom: 7,
+		attribution: 'Map data &copy; <a href="https://www.openstreetmap.org/">OpenStreetMap</a> contributors, ' +
+			'<a href="https://creativecommons.org/licenses/by-sa/2.0/">CC-BY-SA</a>, ' +
+			'Imagery © <a href="https://www.mapbox.com/">Mapbox</a>',
+		id: 'mapbox/light-v9',
+		tileSize: 512,
+		zoomOffset: -1
+	}).addTo(map);
+
+
+	// control that shows state info on hover
+	var info = L.control(); //create an object called control
+
+	info.onAdd = function (map) {
+		this._div = L.DomUtil.create('div', 'info'); //create a div with a class "info"
+		this.update();
+		return this._div;
+	};
+
+    //method that we will use to update the control based on feature properties passed
+	info.update = function (props) {
+		this._div.innerHTML = '<h4>Pennsylvania Confirmed Covid-19 Cases</h4>' +  (props ?
+			'<b>' + props.us_confi_4 + '</b><br />' + props.us_confi_8 + ' Confirmed Cases by 4/25/2020'
+			: 'Hover over a county');
+	}; //this custom popup is in the top right corner of our map, and is coded to tell the user to hover over a state. once the user hovers, the custom popup will tell the user which state they are hovering and their corresponding population density.
+
+	info.addTo(map);
+
+
+	// get color depending on population density value
+	function getColor(d) {
+		return d > 1000   ? '#a50f15' :
+				d > 800   ? '#de2d26' :
+				d > 500   ? '#fb6a4a' :
+				d > 200   ? '#fc9272' :
+				d > 50    ? '#fcbba1' :
+							'#fee5d9';
+	} //this function assigns different colors to density levels. the caller is the getColor while the d inside of the parantheses is the single parameter. the d will be our population density, and then depending on the value, it will return the color that is assigned with the specifications that are listed below it.
+
+	function style(feature) {
+		return {
+			weight: 2,
+			opacity: 1,
+			color: '#c7c6c5',
+			dashArray: '3',
+			fillOpacity: 0.7,
+			fillColor: getColor(feature.properties.us_confi_8)
+		}; //this function creates a style guit for each of the states. caller is the style() while the feature inside the parantheses is the single parameter. the features written below it will be returned when the feature is assigned to something later on in the code. so each time feature is assigned, it will return these stylistic guides. 
+	}
+
+	function highlightFeature(e) { //this function is assigning the caller as highlightFeature with e being the parameter.
+		var layer = e.target; //creating an object called layer that will be activated when the mouse hovers over an object and creating the e.target
+
+		layer.setStyle({
+			weight: 5,
+			color: '#666',
+			dashArray: '',
+			fillOpacity: 0.7
+		}); //this is style that will result when the mouse hovers over the object(state) 
+
+		if (!L.Browser.ie && !L.Browser.opera && !L.Browser.edge) {
+			layer.bringToFront();
+		} //this if statement shows that if the mouse hovers over a state, then the highlighted object will be moved to the front or over the surrounding states so the border doesn't clash with it's surroundings. it also specifies to NOT bring the object to the front for IE. Opera or Edge. these three things are operating systems and is specifying that if the HTML is detected to be in one of these operating systems, that it will NOT bring the object above the others. 
+
+		info.update(layer.feature.properties); //this is to correspond with the custom popup that is created earlier
+	}
+
+	var geojson; //creation of geojson variable
+
+	function resetHighlight(e) {
+		geojson.resetStyle(e.target);
+		info.update(); //this is to correspond with the custom popup that is created earlier
+	} //this function defines what happens during mouseout (specified in a function below). the function is essentially resetting the style back to the original style guide that was created above in getColor and style (where the colors will be based on population density and the style created the white dashed state borders). to ensure that this function works, the geojson must be created in the variable before it(which we can clearly see that it is). if it is not created, this function will not work correctly. the geojson is also assigned to the statesData below. 
+
+	function zoomToFeature(e) {
+		map.fitBounds(e.target.getBounds());
+	} //this function listens for a click from the user, and if it is acctivated 
+
+	function onEachFeature(feature, layer) {
+		layer.on({
+			mouseover: highlightFeature,
+			mouseout: resetHighlight,
+			click: zoomToFeature
+		}); //this function adds all of the listening functions we created to apply to each individual features and add to our state layers. so for each mouseover, the function we created will highlight the feature, and on mouseout it will return to our original style. if the user clicks on the state, the zoomtofeature function will be activated that we defined earlier!
+	}
+
+	geojson = L.geoJson(pacovid, {
+		style: style,
+		onEachFeature: onEachFeature
+	}).addTo(map); //this assigned the geojson object that we created earler to a set of data (statesData) and assigning the style function we created earlier to that dataset. 
+
+	map.attributionControl.addAttribution('Population data &copy; <a href="http://census.gov/">US Census Bureau</a>');
+
+
+	var legend = L.control({position: 'bottomright'}); //creating the object that will be our legend
+
+	legend.onAdd = function (map) {
+
+		var div = L.DomUtil.create('div', 'info legend'),
+			grades = [0, 50, 200, 500, 800, 1000],
+			labels = [],
+			from, to; //create a function for our legend where the caller is called function and our one parameter is map. when the function is called, the legend will appear with these style guides set under the div object. 
+        
+		for (var i = 0; i < grades.length; i++) {
+			from = grades[i];
+			to = grades[i + 1];
+
+			labels.push(
+				'<i style="background:' + getColor(from + 1) + '"></i> ' +
+				from + (to ? '&ndash;' + to : '+'));
+		} // loop through our density intervals and generate a label with a colored square for each interval
+
+		div.innerHTML = labels.join('<br>');
+		return div; // after running through the loop above to generate the colored square and interval lables, return the div object that we created earlier for the legend.
+	};
+
+	legend.addTo(map); //add the legend to the map
+
+</script>
+
+
+
+</body>
+</html>
